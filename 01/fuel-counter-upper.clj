@@ -1,8 +1,13 @@
 (defn round-down [num]
-    (int (Math/floor num)))
+    (-> num
+        (Math/floor)
+        (int)))
 
 (defn fuel-required [mass]
-    (- (round-down (/ mass 3)) 2))
+    (-> mass
+        (/ 3)
+        (round-down)
+        (- 2)))
 
 (defn recursive-fuel-required [mass]
     (loop [fuels []
