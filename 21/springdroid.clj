@@ -11,13 +11,13 @@
 
 
 (defn read-and-print [out]
-    (go 
-        (while true
-            (Thread/sleep 500)
-            (let [code (poll! out)]
-                (when code
-                      (try (print (char code))
-                           (catch IllegalArgumentException e (println "Damage: " code))))))))
+    (go-loop [read? :read]
+        (let [code (<! out)
+              chr (try (char code) (catch IllegalArgumentException e false))]
+            (if (false? chr)
+                code
+                (do (print chr)
+                    (recur read?))))))
 
 (defn str->chars [s]
     (->> s
@@ -60,7 +60,8 @@
         (def damage-out (read-and-print out))
         (doseq [instruction script]
             (write-instruction in instruction)
-            (write in \newline))))
+            (write in \newline))
+        (println "Damage: " (<!! damage-out))))
 
 (defn main []
     (run-droid walk-springscript)
