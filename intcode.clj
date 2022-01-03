@@ -77,7 +77,7 @@
                (instruction-size-by-opcode)
                (+ pos))))
 
-(defn update-state [state opcode params modes rel-base in-chan out-chan]
+(defn update-state [state opcode params modes rel-base]
     (cond 
         (jump? opcode) state
         (update-rel-base? opcode) state
@@ -123,10 +123,48 @@
                               (recur state new-pointer new-rel-base))
 
                         :else 
-                        (recur (update-state state opcode params modes rel-base in-chan out-chan)
+                        (recur (update-state state opcode params modes rel-base)
                                 new-pointer
                                 new-rel-base))))))
   [in-chan out-chan]))
+
+(defn run-intcode-step [initial-state initial-pos initial-rel-base initial-in-queue]
+  (loop [state initial-state
+         pos initial-pos
+         rel-base initial-rel-base
+         in-queue initial-in-queue
+         packet []
+         outputs []]
+    (let [instruction (state pos)
+          opcode (instruction->opcode instruction)]
+      (if (halt? opcode)
+        [[state pos rel-base] outputs]
+        (let [params (instruction->parameters opcode state pos)
+              modes (instruction->modes instruction)
+              new-pointer (update-pointer pos state opcode params modes rel-base)
+              new-rel-base (update-rel-base rel-base state opcode params modes)]
+          (cond (read-input? opcode)
+                (if (empty? in-queue)
+                  [[state pos new-rel-base] outputs]
+                  (let [read (peek in-queue)
+                        new-state (assoc state
+                                         (parameter-address (first params) (first modes) rel-base)
+                                         read)]
+                    (recur new-state new-pointer new-rel-base (pop in-queue) packet outputs)))
+
+                (write-output? opcode)
+                (let [output (parameter-value state (first params) (first modes) rel-base)]
+                  (if (= (count packet) 2)
+                    (recur state new-pointer new-rel-base in-queue [] (conj outputs (conj packet output)))
+                    (recur state new-pointer new-rel-base in-queue (conj packet output) outputs)))
+
+                :else
+                (recur (update-state state opcode params modes rel-base)
+                       new-pointer
+                       new-rel-base
+                       in-queue
+                       packet
+                       outputs)))))))
 
 ; examples:
 ; state [1002 4 3 4 33]
